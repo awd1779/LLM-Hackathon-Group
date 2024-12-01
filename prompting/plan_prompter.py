@@ -24,8 +24,18 @@ Each <coord> is a tuple (x,y,z) for gripper location, follow these steps to plan
         e.g. given path [(0.1, 0.2, 0.3), (0.2, 0.2. 0.3), (0.3, 0.4. 0.7)], the distance between steps (0.1, 0.2, 0.3)-(0.2, 0.2. 0.3) is too low, and between (0.2, 0.2. 0.3)-(0.3, 0.4. 0.7) is too high. You can change the path to [(0.1, 0.2, 0.3), (0.15, 0.3. 0.5), (0.3, 0.4. 0.7)] 
     If a plan failed to execute, re-plan to choose more feasible steps in each PATH, or choose different actions.
 """
-OPENAI_KEY = str(json.load(open("openai_key.json")))
+
+
+OPENAI_KEY = json.load(open("openai_key.json"))['api_key']
+OPENAI_API_BASE = json.load(open("openai_key.json"))['api_base']
+
+openai.api_base = OPENAI_API_BASE
 openai.api_key = OPENAI_KEY
+
+client = openai.OpenAI(
+    api_key=OPENAI_KEY,
+    base_url=OPENAI_API_BASE,
+)
 
 
 def get_chat_prompt(env: MujocoSimEnv):
@@ -237,7 +247,7 @@ Re-format to strictly follow [Action Output Instruction]!
         for n in range(self.max_api_queries):
             print('querying {}th time'.format(n))
             try:
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model=self.llm_source,
                     messages=[
                         # {"role": "user", "content": user_prompt},
@@ -246,6 +256,7 @@ Re-format to strictly follow [Action Output Instruction]!
                     max_tokens=self.max_tokens,
                     temperature=self.temperature, 
                     )
+                response = response.to_dict()
                 usage = response['usage']
                 response = response['choices'][0]['message']["content"]
                 print('======= response ======= \n ', response)

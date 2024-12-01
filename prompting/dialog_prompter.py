@@ -3,6 +3,7 @@ import json
 import pickle 
 import openai
 import numpy as np
+import traceback
 from datetime import datetime
 from os.path import join
 from typing import List, Tuple, Dict, Union, Optional, Any
@@ -14,8 +15,17 @@ from .feedback import FeedbackManager
 from .parser import LLMResponseParser
 
 assert os.path.exists("openai_key.json"), "Please put your OpenAI API key in a string in robot-collab/openai_key.json"
-OPENAI_KEY = str(json.load(open("openai_key.json")))
+
+OPENAI_KEY = json.load(open("openai_key.json"))['api_key']
+OPENAI_API_BASE = json.load(open("openai_key.json"))['api_base']
+
+openai.api_base = OPENAI_API_BASE
 openai.api_key = OPENAI_KEY
+
+client = openai.OpenAI(
+    api_key=OPENAI_KEY,
+    base_url=OPENAI_API_BASE,
+)
 
 PATH_PLAN_INSTRUCTION="""
 [Path Plan Instruction]
@@ -70,7 +80,7 @@ class DialogPrompter:
         self.max_calls_per_round = max_calls_per_round 
         self.temperature = temperature
         self.llm_source = llm_source
-        assert llm_source in ["gpt-4", "gpt-3.5-turbo", "claude"], f"llm_source must be one of [gpt4, gpt-3.5-turbo, claude], got {llm_source}"
+        assert llm_source in ["gpt-4", "gpt-3.5-turbo", "claude", "llama3.1-70b-instruct-berkeley"], f"llm_source must be one of [gpt4, gpt-3.5-turbo, claude], got {llm_source}"
 
     def compose_system_prompt(
         self, 
@@ -263,7 +273,17 @@ Your response is:
         for n in range(max_query):
             print('querying {}th time'.format(n))
             try:
-                response = openai.ChatCompletion.create(
+                # response = openai.ChatCompletion.create(
+                #     model=self.llm_source, 
+                #     messages=[
+                #         # {"role": "user", "content": ""},
+                #         {"role": "system", "content": system_prompt+user_prompt},                                    
+                #     ],
+                #     max_tokens=self.max_tokens,
+                #     temperature=self.temperature,
+                #     )
+
+                response = client.chat.completions.create(
                     model=self.llm_source, 
                     messages=[
                         # {"role": "user", "content": ""},
@@ -272,13 +292,16 @@ Your response is:
                     max_tokens=self.max_tokens,
                     temperature=self.temperature,
                     )
+                
+                response = response.to_dict()
                 usage = response['usage']
                 response = response['choices'][0]['message']["content"]
                 print('======= response ======= \n ', response)
                 print('======= usage ======= \n ', usage)
                 break
-            except:
-                print("API error, try again")
+            except Exception as e:
+                print("API error, try again", e)
+                traceback.print_exc()
             continue
         # breakpoint()
         return response, usage
